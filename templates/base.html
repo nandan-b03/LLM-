@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=IBM+Plex+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <title>{% block pagetitle %}Leaf Disease Detector{% endblock pagetitle %}</title>
+    <style>
+        :root {
+            --forest:   #082012;
+            --deep:     #060f0a;
+            --green:    #3d9e6a;
+            --lime:     #94d454;
+            --glass:    rgba(255,255,255,0.055);
+            --border:   rgba(255,255,255,0.09);
+            --border-h: rgba(255,255,255,0.18);
+            --text:     rgba(255,255,255,0.82);
+            --muted:    rgba(255,255,255,0.38);
+            --radius:   16px;
+            --shadow:   0 20px 64px rgba(0,0,0,0.45);
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background: var(--deep);
+        }
+
+        /* ── BACKGROUND ── */
+        .bg-canvas {
+            position: fixed; inset: 0; z-index: -2;
+            background:
+                radial-gradient(ellipse 70% 55% at 15% 8%,  #112b18 0%, transparent 58%),
+                radial-gradient(ellipse 55% 70% at 88% 82%, #091c10 0%, transparent 52%),
+                radial-gradient(ellipse 90% 90% at 50% 50%, #060f0a 0%, #030808 100%);
+        }
+
+        /* Subtle noise grain */
+        .bg-canvas::after {
+            content: '';
+            position: absolute; inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        .bg-orb {
+            position: fixed; border-radius: 50%;
+            filter: blur(90px); pointer-events: none; z-index: -1;
+            animation: drift 20s ease-in-out infinite;
+        }
+        .bg-orb-1 { width: 500px; height: 500px; background: #1a4d2e; opacity: 0.18; top: -80px;  left: -120px; }
+        .bg-orb-2 { width: 360px; height: 360px; background: #2d7a4f; opacity: 0.12; top: 45%;   right: -80px; animation-delay: -7s; }
+        .bg-orb-3 { width: 280px; height: 280px; background: #94d454; opacity: 0.06; bottom: 8%; left: 35%; animation-delay: -13s; }
+        @keyframes drift {
+            0%,100% { transform: translate(0,0); }
+            33%      { transform: translate(24px,-36px); }
+            66%      { transform: translate(-18px,22px); }
+        }
+
+        /* ── NAVBAR ── */
+        .navbar {
+            background: rgba(6,15,10,0.72);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+            height: 58px;
+            position: sticky; top: 0; z-index: 1000;
+        }
+
+        .navbar-brand {
+            display: flex; align-items: center; gap: 10px;
+            text-decoration: none;
+        }
+
+        .brand-mark {
+            width: 28px; height: 28px;
+            border-radius: 7px;
+            background: linear-gradient(135deg, var(--green), #1e5c3a);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .brand-wordmark {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: rgba(255,255,255,0.9);
+            letter-spacing: 0.2px;
+            line-height: 1;
+        }
+
+        .brand-wordmark sub {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.55rem;
+            font-weight: 400;
+            color: var(--lime);
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            display: block;
+            margin-top: 2px;
+            vertical-align: baseline;
+        }
+
+        .nav-link {
+            color: var(--muted) !important;
+            font-size: 0.82rem;
+            font-weight: 400;
+            padding: 6px 14px !important;
+            border-radius: 6px;
+            transition: all 0.2s;
+            display: flex; align-items: center; gap: 7px;
+            letter-spacing: 0.2px;
+        }
+        .nav-link:hover { color: rgba(255,255,255,0.85) !important; background: var(--glass); }
+        .nav-link.active-page { color: rgba(255,255,255,0.9) !important; }
+        .nav-link.active-page .nav-dot { opacity: 1; }
+
+        .nav-dot {
+            width: 4px; height: 4px;
+            border-radius: 50%;
+            background: var(--lime);
+            flex-shrink: 0;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        /* ── PAGE WRAP ── */
+        .page-wrap { flex: 1; position: relative; z-index: 1; }
+        .container { max-width: 1080px; }
+
+        /* ── FOOTER ── */
+        .site-footer {
+            background: rgba(4,10,6,0.8);
+            border-top: 1px solid var(--border);
+            padding: 24px 0;
+            position: relative; z-index: 1;
+        }
+
+        .footer-inner {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .footer-brand {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: rgba(255,255,255,0.3);
+        }
+
+        .footer-links {
+            display: flex; gap: 24px; list-style: none; padding: 0;
+        }
+        .footer-links a {
+            font-size: 0.78rem; color: var(--muted);
+            text-decoration: none; transition: color 0.2s;
+        }
+        .footer-links a:hover { color: var(--lime); }
+
+        .footer-copy {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.68rem;
+            color: rgba(255,255,255,0.2);
+            letter-spacing: 0.5px;
+        }
+
+        /* ── SHARED COMPONENTS ── */
+        .panel {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px 24px;
+            box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.06);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            animation: fadeUp 0.5s ease both;
+        }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .panel-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.6rem;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 18px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .panel-label::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .tag {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.62rem;
+            font-weight: 500;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--lime);
+            background: rgba(148,212,84,0.1);
+            border: 1px solid rgba(148,212,84,0.22);
+            padding: 4px 12px;
+            border-radius: 4px;
+        }
+
+        @media (max-width: 768px) { .panel { padding: 20px 16px; } }
+    </style>
+</head>
+<body>
+
+<div class="bg-canvas"></div>
+<div class="bg-orb bg-orb-1"></div>
+<div class="bg-orb bg-orb-2"></div>
+<div class="bg-orb bg-orb-3"></div>
+
+<nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container d-flex align-items-center" style="height:100%">
+        <a class="navbar-brand" href="/">
+            <div class="brand-mark">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round">
+                    <path d="M12 2C6 2 2 8 2 14c0 4 2.5 7 6 8 0-3 1-6 4-8-3 2-4 5-4 8 2 1 4 1.5 4 1.5C13 22 15 19 15 16c0-2-1-4-3-5 4 1 6 4 6 7 2.5-1.5 4-4.5 4-8 0-6-4-8-10-8z"/>
+                </svg>
+            </div>
+            <div class="brand-wordmark">
+                Leaf Disease
+                <sub>Detector</sub>
+            </div>
+        </a>
+
+        <button class="navbar-toggler border-0 ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navMenu">
+            <ul class="navbar-nav ms-auto d-flex align-items-center gap-1">
+                <li class="nav-item">
+                    <a class="nav-link" href="/">
+                        <span class="nav-dot"></span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                        Home
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/index">
+                        <span class="nav-dot"></span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                        AI Engine
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/search">
+                        <span class="nav-dot"></span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                        Voice Search
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="page-wrap">
+    <div class="container py-4">
+        {% block body %}
+        {% endblock body %}
+    </div>
+</div>
+
+<footer class="site-footer">
+    <div class="footer-inner">
+        <div class="footer-brand">Leaf Disease Detector</div>
+        <ul class="footer-links">
+            <li><a href="/">Home</a></li>
+            <li><a href="/index">AI Engine</a></li>
+            <li><a href="/search">Voice Search</a></li>
+        </ul>
+        <div class="footer-copy">© 2026 HNM &nbsp;·&nbsp; Minor Project</div>
+    </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const currentPath = window.location.pathname;
+    document.querySelectorAll('.nav-link').forEach(link => {
+        if (link.getAttribute('href') === currentPath) {
+            link.classList.add('active-page');
+        }
+    });
+</script>
+</body>
+</html>

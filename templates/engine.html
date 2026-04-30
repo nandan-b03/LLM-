@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block pagetitle %}AI Engine — Leaf Disease Detector{% endblock %}
+{% block body %}
+<style>
+.engine-wrap{padding:40px 0 72px;}
+.engine-header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:30px;padding-bottom:22px;border-bottom:1px solid var(--border);}
+.engine-header h1{font-family:'Syne',sans-serif;font-size:1.75rem;font-weight:800;color:rgba(255,255,255,0.95);letter-spacing:-0.5px;line-height:1.15;}
+.engine-header p{font-size:0.83rem;color:var(--muted);margin-top:5px;font-weight:300;}
+
+.engine-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto;gap:16px;}
+.panel:nth-child(1){animation-delay:0.05s}.panel:nth-child(2){animation-delay:0.1s}.panel:nth-child(3){animation-delay:0.15s}.panel:nth-child(4){animation-delay:0.2s}
+
+/* UPLOAD */
+.upload-panel{grid-column:1;grid-row:1;}
+.img-frame{width:100%;height:192px;border:1px dashed rgba(0,201,110,0.22);border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:18px;background:rgba(0,201,110,0.02);overflow:hidden;transition:border-color 0.3s,box-shadow 0.3s;}
+.img-frame:hover{border-color:rgba(0,201,110,0.45);box-shadow:0 0 22px rgba(0,201,110,0.07);}
+.img-frame img{width:100%;height:100%;object-fit:cover;}
+.img-placeholder-text{font-family:'JetBrains Mono',monospace;font-size:0.62rem;letter-spacing:1.5px;text-transform:uppercase;color:rgba(204,232,210,0.2);text-align:center;}
+.upload-form{display:flex;flex-direction:column;gap:10px;}
+.upload-form input[type="file"]{display:none;}
+.file-sel{display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(0,201,110,0.06);border:1px solid var(--border);border-radius:9px;padding:10px 18px;font-size:0.81rem;color:var(--muted);cursor:pointer;transition:all 0.2s;}
+.file-sel:hover{border-color:var(--border-h);color:var(--text);background:rgba(0,201,110,0.1);}
+#file-chosen{font-family:'JetBrains Mono',monospace;font-size:0.64rem;color:rgba(204,232,210,0.25);text-align:center;letter-spacing:0.3px;}
+.btn-run{display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#00c96e,#007d42);color:#fff;border:none;border-radius:9px;padding:11px 20px;font-family:'Syne',sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;box-shadow:0 5px 24px rgba(0,201,110,0.36),inset 0 1px 0 rgba(255,255,255,0.15);transition:all 0.22s;margin-top:2px;}
+.btn-run:hover{transform:translateY(-2px);box-shadow:0 12px 36px rgba(0,201,110,0.52);}
+.up-cap{font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:rgba(204,232,210,0.17);text-align:center;letter-spacing:1.2px;text-transform:uppercase;margin-top:6px;}
+
+/* RESULT */
+.result-panel{grid-column:2;grid-row:1;}
+.stat-row{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.stat-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.stat-dot.ok{background:#4dd890;box-shadow:0 0 10px #4dd890;}
+.stat-dot.bad{background:#e07265;box-shadow:0 0 10px #e07265;}
+.stat-dot.idle{background:rgba(204,232,210,0.18);}
+.stat-lbl{font-family:'JetBrains Mono',monospace;font-size:0.68rem;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.85);}
+.r-rows{display:flex;flex-direction:column;gap:16px;}
+.rk{font-family:'JetBrains Mono',monospace;font-size:0.58rem;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);margin-bottom:4px;}
+.rv{font-size:0.9rem;color:var(--text);line-height:1.65;}
+.rv.ac{font-family:'Syne',sans-serif;color:var(--green);font-weight:700;font-size:1.1rem;letter-spacing:-0.2px;}
+.idle-s{height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:rgba(204,232,210,0.16);font-size:0.8rem;text-align:center;}
+
+/* REMEDY */
+.remedy-panel{grid-column:1;grid-row:2;}
+.remedy-list{list-style:none;display:flex;flex-direction:column;gap:9px;margin-bottom:18px;}
+.remedy-list li{display:flex;gap:12px;font-size:0.84rem;color:var(--muted);line-height:1.65;padding:12px 16px;background:rgba(0,201,110,0.03);border-radius:9px;border-left:2px solid rgba(0,201,110,0.3);transition:background 0.2s,border-color 0.2s;}
+.remedy-list li:hover{background:rgba(0,201,110,0.06);border-color:rgba(0,201,110,0.6);}
+.rnum{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:var(--green);flex-shrink:0;margin-top:3px;}
+.btn-ref{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:9px;padding:9px 18px;font-size:0.78rem;text-decoration:none;transition:all 0.2s;}
+.btn-ref:hover{background:var(--glass);border-color:var(--border-h);color:var(--text);}
+
+/* SUPPLEMENT */
+.supplement-panel{grid-column:2;grid-row:2;}
+.supp-img{width:100%;height:180px;object-fit:contain;border-radius:10px;background:rgba(0,201,110,0.02);border:1px solid var(--border);padding:14px;display:block;margin-bottom:16px;}
+.btn-buy{display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,var(--lime),#50a020);color:#051505;border:none;border-radius:9px;padding:11px 24px;font-family:'Syne',sans-serif;font-size:0.85rem;font-weight:700;cursor:pointer;text-decoration:none;width:100%;box-shadow:0 5px 22px rgba(125,222,60,0.28);transition:all 0.22s;}
+.btn-buy:hover{transform:translateY(-2px);box-shadow:0 10px 32px rgba(125,222,60,0.45);color:#051505;}
+.idle-text{font-family:'JetBrains Mono',monospace;font-size:0.62rem;letter-spacing:1.5px;text-transform:uppercase;color:rgba(204,232,210,0.17);text-align:center;padding:54px 0;line-height:1.8;}
+
+@media(max-width:860px){.engine-grid{grid-template-columns:1fr;}.upload-panel,.result-panel,.remedy-panel,.supplement-panel{grid-column:1;grid-row:auto;}}
+</style>
+
+<div class="engine-wrap">
+  <div class="engine-header">
+    <div>
+      <h1>AI Engine</h1>
+      <p>Upload a leaf image to detect disease and get treatment recommendations</p>
+    </div>
+    <span class="tag">CNN Model Active</span>
+  </div>
+
+  <div class="engine-grid">
+
+    <!-- UPLOAD -->
+    <div class="panel upload-panel">
+      <div class="panel-label">Image Upload</div>
+      <div class="img-frame">
+        {% if ImageDisplay %}<img src="{{ ImageDisplay }}" alt="Uploaded leaf">
+        {% else %}<div class="img-placeholder-text">No image selected</div>{% endif %}
+      </div>
+      <form action="{{ url_for('image') }}" method="POST" enctype="multipart/form-data" class="upload-form">
+        <label for="fi" class="file-sel">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Select Image
+        </label>
+        <input type="file" id="fi" name="filename" accept="image/*" required onchange="document.getElementById('file-chosen').textContent=this.files[0]?this.files[0].name:'No file chosen'">
+        <span id="file-chosen">No file chosen</span>
+        <button type="submit" class="btn-run">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Run Analysis
+        </button>
+      </form>
+      <p class="up-cap">Accepts JPG, PNG · Max 5 MB</p>
+    </div>
+
+    <!-- RESULT -->
+    <div class="panel result-panel">
+      <div class="panel-label">Analysis Result</div>
+      {% if status %}
+        <div class="stat-row">
+          {% if status == "Healthy" %}<div class="stat-dot ok"></div><span class="stat-lbl">Plant is Healthy</span>
+          {% else %}<div class="stat-dot bad"></div><span class="stat-lbl">Disease Detected</span>{% endif %}
+        </div>
+        <div class="r-rows">
+          <div><div class="rk">Status</div><div class="rv {% if status=='Healthy' %}ac{% endif %}">{{ status }}</div></div>
+          {% if status != "Healthy" %}<div><div class="rk">Disease</div><div class="rv ac">{{ disease }}</div></div>{% endif %}
+          <div><div class="rk">Cause / Notes</div><div class="rv">{{ causes }}</div></div>
+        </div>
+      {% else %}
+        <div class="idle-s">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.9" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          Awaiting image input
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- REMEDY -->
+    <div class="panel remedy-panel">
+      <div class="panel-label">Prevention & Treatment</div>
+      {% if status %}
+        {% if status == "Healthy" %}
+          <div class="idle-s">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#4dd890" stroke-width="1.2" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            No treatment required
+          </div>
+        {% else %}
+          <p style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:14px;">{{ remedie }}</p>
+          <ul class="remedy-list">
+            {% for r in remedie1 %}<li><span class="rnum">{{ '0' ~ loop.index if loop.index < 10 else loop.index }}</span>{{ r }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+      {% else %}
+        <div class="idle-s">Treatment steps appear after analysis</div>
+      {% endif %}
+      <a href="https://www.thespruce.com/prevent-plant-diseases-in-your-garden-2539511" target="_blank" class="btn-ref">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        Reference Guide
+      </a>
+    </div>
+
+    <!-- SUPPLEMENT -->
+    <div class="panel supplement-panel">
+      <div class="panel-label">Recommended Supplement</div>
+      {% if supplements %}
+        <img class="supp-img" src="{{ supplements }}" alt="Supplement">
+        <a href="{{ buy_link if buy_link else 'https://www.amazon.in/s?k=plant+disease+fungicide' }}" target="_blank" class="btn-buy">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          Purchase Product
+        </a>
+      {% else %}
+        <div class="idle-text">Product shown<br>after analysis</div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock body %}

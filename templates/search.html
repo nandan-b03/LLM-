@@ -1,0 +1,393 @@
+{% extends 'base.html' %}
+{% block pagetitle %}Voice Search · Leaf Disease Detector{% endblock pagetitle %}
+
+{% block body %}
+<style>
+  .va-wrap { min-height: 88vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 16px; }
+  .va-card { background: var(--glass); border: 1px solid var(--border); border-radius: 24px; padding: 48px 44px 40px; max-width: 600px; width: 100%; text-align: center; box-shadow: 0 28px 80px rgba(0,0,0,0.48), inset 0 1px 0 rgba(255,255,255,0.07); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); animation: cardIn 0.6s cubic-bezier(.22,.68,0,1.15) both; }
+  @keyframes cardIn { from { opacity:0; transform:translateY(28px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+  .va-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; font-weight: 500; letter-spacing: 2.5px; text-transform: uppercase; color: var(--lime); margin-bottom: 18px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .va-eyebrow::before, .va-eyebrow::after { content: ''; width: 28px; height: 1px; background: rgba(148,212,84,0.35); }
+  .va-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(1.7rem, 4vw, 2.2rem); font-weight: 600; color: rgba(255,255,255,0.95); margin-bottom: 8px; line-height: 1.2; letter-spacing: -0.3px; }
+  .va-title em { color: var(--lime); font-style: italic; }
+  .va-sub { font-size: 0.86rem; color: var(--muted); font-weight: 300; margin-bottom: 36px; line-height: 1.7; }
+  .mic-area { position: relative; width: 130px; height: 130px; margin: 0 auto 28px; cursor: pointer; }
+  .pulse-ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid rgba(61,158,106,0.15); transform: scale(1); opacity: 0; }
+  .mic-area.listening .pulse-ring:nth-child(1) { animation: gaRing 1.8s ease-out infinite 0s; }
+  .mic-area.listening .pulse-ring:nth-child(2) { animation: gaRing 1.8s ease-out infinite 0.45s; }
+  .mic-area.listening .pulse-ring:nth-child(3) { animation: gaRing 1.8s ease-out infinite 0.9s; }
+  @keyframes gaRing { 0% { transform: scale(0.85); opacity: 0.75; border-color: rgba(61,158,106,0.5); } 100% { transform: scale(1.65); opacity: 0; border-color: rgba(61,158,106,0); } }
+  .mic-core { position: absolute; inset: 18px; border-radius: 50%; border: none; background: linear-gradient(145deg, #3d9e6a, #236b42); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 32px rgba(61,158,106,0.45); transition: all 0.3s ease; cursor: pointer; }
+  .mic-core:hover { transform: scale(1.06); box-shadow: 0 12px 44px rgba(61,158,106,0.65); }
+  .mic-area.listening .mic-core { background: linear-gradient(145deg, #c0392b, #922b21); box-shadow: 0 8px 32px rgba(192,57,43,0.5); animation: corePulse 1s ease-in-out infinite; }
+  @keyframes corePulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
+  .waveform { display: none; align-items: center; justify-content: center; gap: 5px; height: 40px; margin-bottom: 18px; }
+  .waveform.active { display: flex; }
+  .wave-bar { width: 4px; border-radius: 3px; background: var(--green); animation: wave 0.8s ease-in-out infinite; }
+  .wave-bar:nth-child(1) { height: 12px; animation-delay: 0s; }
+  .wave-bar:nth-child(2) { height: 28px; animation-delay: 0.1s; background: var(--lime); }
+  .wave-bar:nth-child(3) { height: 20px; animation-delay: 0.2s; }
+  .wave-bar:nth-child(4) { height: 36px; animation-delay: 0.15s; background: var(--lime); }
+  .wave-bar:nth-child(5) { height: 22px; animation-delay: 0.05s; }
+  .wave-bar:nth-child(6) { height: 30px; animation-delay: 0.25s; background: var(--lime); }
+  .wave-bar:nth-child(7) { height: 14px; animation-delay: 0.1s; }
+  @keyframes wave { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(0.3); } }
+  .va-status { font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; letter-spacing: 0.5px; color: rgba(255,255,255,0.38); margin-bottom: 6px; min-height: 22px; transition: all 0.3s; }
+  .va-status.hearing { color: var(--green); }
+  .va-status.error { color: #e07060; }
+  .va-transcript { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 1.05rem; color: rgba(255,255,255,0.78); min-height: 26px; margin-bottom: 20px; transition: all 0.3s; }
+  .answer-bubble { display: none; background: rgba(148,212,84,0.07); border: 1px solid rgba(148,212,84,0.18); border-radius: 14px; padding: 18px 22px; text-align: left; margin-bottom: 22px; animation: bubbleIn 0.4s ease both; }
+  @keyframes bubbleIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+  .ab-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .ab-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; color: var(--lime); display: flex; align-items: center; gap: 8px; }
+  .ab-label::before { content: ''; width: 14px; height: 1px; background: var(--lime); opacity: 0.5; }
+  .ab-text { font-size: 0.9rem; color: rgba(255,255,255,0.78); line-height: 1.75; white-space: pre-line; }
+  .typing-dots { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
+  .typing-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--lime); animation: dot-bounce 1s ease-in-out infinite; opacity: 0.4; }
+  .typing-dots span:nth-child(2) { animation-delay: 0.18s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.36s; }
+  @keyframes dot-bounce { 0%,100%{ transform:translateY(0); opacity:0.4; } 50% { transform:translateY(-6px); opacity:1; } }
+  .speak-indicator { display: none; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--green); letter-spacing: 1px; text-transform: uppercase; }
+  .speak-indicator.active { display: flex; }
+  .speak-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); animation: dot-bounce 0.8s ease-in-out infinite; }
+  .speak-dot:nth-child(2) { animation-delay: 0.15s; }
+  .speak-dot:nth-child(3) { animation-delay: 0.3s; }
+  .s-divider { height: 1px; background: linear-gradient(to right, transparent, var(--border), transparent); margin: 22px 0; }
+  .chips-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.22); margin-bottom: 12px; }
+  .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .chip { background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 6px; padding: 7px 14px; font-size: 0.76rem; color: rgba(255,255,255,0.45); cursor: pointer; transition: all 0.2s; user-select: none; letter-spacing: 0.2px; }
+  .chip:hover { background: rgba(148,212,84,0.08); border-color: rgba(148,212,84,0.28); color: var(--lime); transform: translateY(-1px); }
+  .mic-warning { display: none; background: rgba(192,57,43,0.1); border: 1px solid rgba(192,57,43,0.25); border-radius: 10px; padding: 14px 18px; font-size: 0.82rem; color: rgba(255,255,255,0.65); margin-bottom: 20px; line-height: 1.65; text-align: left; }
+  .mic-warning strong { color: #e07060; }
+  .lang-select-wrap { margin: 0 auto 24px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; animation: fadeIn 0.8s ease both 0.2s; }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  .lang-btn { background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--muted); padding: 6px 16px; border-radius: 20px; font-size: 0.72rem; cursor: pointer; transition: all 0.2s; font-family: 'IBM Plex Mono', monospace; }
+  .lang-btn.active { background: rgba(148,212,84,0.12); border-color: var(--lime); color: var(--lime); box-shadow: 0 0 15px rgba(148,212,84,0.12); }
+  .lang-btn:hover:not(.active) { background: rgba(255,255,255,0.08); border-color: var(--border-h); color: var(--text); }
+  @media(max-width:600px) { .va-card { padding: 36px 20px 28px; } .mic-area { width: 112px; height: 112px; } }
+</style>
+
+<div class="va-wrap">
+  <div class="va-card">
+    <div class="va-eyebrow">Voice Assistant</div>
+    <h1 class="va-title">Ask About <em>Leaf Diseases</em></h1>
+    <div class="lang-select-wrap">
+      <button class="lang-btn active" onclick="setLang('en-IN', this)">English</button>
+      <button class="lang-btn" onclick="setLang('hi-IN', this) ">Hindi</button>
+      <button class="lang-btn" onclick="setLang('ta-IN', this) ">Tamil</button>
+      <button class="lang-btn" onclick="setLang('te-IN', this) ">Telugu</button>
+      <button class="lang-btn" onclick="setLang('kn-IN', this) ">Kannada</button>
+    </div>
+    <p class="va-sub">Tap the microphone and speak naturally — get instant answers about plant diseases</p>
+    <div class="mic-warning" id="mic-warning"><strong>Microphone Blocked</strong><br>Click the lock icon in Chrome's address bar -> Site Settings -> Microphone -> Allow, then refresh this page.</div>
+    <div class="mic-area" id="mic-area" onclick="toggleListen()">
+      <div class="pulse-ring"></div><div class="pulse-ring"></div><div class="pulse-ring"></div>
+      <div class="mic-core" id="mic-core">
+        <svg id="mic-svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        <svg id="stop-svg" width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,255,255,0.9)" style="display:none"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+      </div>
+    </div>
+    <div class="waveform" id="waveform"><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div></div>
+    <div class="va-status" id="va-status">Tap the mic and ask anything about leaf diseases</div>
+    <div class="va-transcript" id="va-transcript"></div>
+    <div class="answer-bubble" id="answer-bubble">
+      <div class="ab-header"><div class="ab-label">Leaf Disease Detector</div><div class="speak-indicator" id="speak-indicator"><div class="speak-dot"></div><div class="speak-dot"></div><div class="speak-dot"></div>Speaking</div></div>
+      <div class="ab-text" id="ab-text"></div>
+    </div>
+    <div class="s-divider"></div>
+    <div class="chips-label">Try asking</div>
+    <div class="chips">
+      <span class="chip" onclick="ask('What is bacterial spot')">Bacterial Spot</span>
+      <span class="chip" onclick="ask('What is mosaic virus')">Mosaic Virus</span>
+      <span class="chip" onclick="ask('What is leaf mold')">Leaf Mold</span>
+      <span class="chip" onclick="ask('What is curl virus')">Curl Virus</span>
+      <span class="chip" onclick="ask('What is septoria')">Septoria</span>
+      <span class="chip" onclick="ask('How to prevent leaf disease')">Prevention Tips</span>
+      <span class="chip" onclick="ask('Go to AI engine')">Open AI Engine</span>
+      <span class="chip" onclick="ask('Help')">Help</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const KB = [
+  {
+    keys: ["bacterial spot","bacterial","जीवाणु धब्बा","बैक्टीरियल स्पॉट","பாக்டீரியா புள்ளி","பாக்டீரியா","బాక్టీరియల్ స్పాట్","బాక్టీరియల్","బేక్టీరియల్","ಬ್ಯಾಕ್ಟೀರಿಯಾದ ತಾಣ","ಬ್ಯಾಕ್ಟೀರಿಯಲ್ ಸ್ಪಾಟ್","ಬ್ಯಾಕ್ಟೀರಿಯಲ್","spot","dhabba"],
+    answer: "Bacterial Spot is a disease caused by Xanthomonas bacteria. It creates small water-soaked spots on leaves that turn brownish-red. It spreads during warm, humid weather.\n\nRemedies: Remove and destroy infected plants. Do not compost them. Rotate your tomato crops yearly. Apply copper-based fungicides every 7 to 10 days during wet weather.",
+    hi: "बैक्टीरियल स्पॉट ज़ैंथोमोनस बैक्टीरिया के कारण होने वाली बीमारी है। यह पत्तियों पर छोटे पानी से भरे धब्बे बनाता है जो भूरे-लाल हो जाते हैं। यह गर्म, नम मौसम के दौरान फैलता है।\n\nउपचार: संक्रमित पौधों को हटा दें और नष्ट कर दें। हर साल अपनी टमाटर की फसलों को बदलें। गीले मौसम में हर 7-10 दिनों में तांबे आधारित कवकनाशी (copper fungicide) का उपयोग करें।",
+    ta: "பாக்டீரியா புள்ளி என்பது சாந்தோமோனாஸ் பாக்டீரியாவால் ஏற்படும் ஒரு நோயாகும். இது இலைகளில் சிறிய நீர் நிறைந்த புள்ளிகளை உருவாக்குகிறது, அவை பழுப்பு-சிவப்பு நிறமாக மாறும். இது வெப்பமான, ஈரப்பதமான காலநிலையில் பரவுகிறது.\n\nசிகிச்சை: பாதிக்கப்பட்ட செடிகளை அகற்றி அழிக்கவும். ஒவ்வொரு ஆண்டும் பயிர் சுழற்சியைப் பின்பற்றவும். ஈரமான காலநிலையில் 7-10 நாட்களுக்கு ஒருமுறை தாமிரம் சார்ந்த பூஞ்சைக் கொல்லியைப் பயன்படுத்தவும்.",
+    te: "బాక్టీరియల్ స్పాట్ అనేది శాంతోమోనాస్ బ్యాక్టీరియా వల్ల వచ్చే వ్యాధి. ఇది ఆకులపై చిన్న నీటితో నిండిన మచ్చలను ఏర్పరుస్తుంది, అవి గోధుమ-ఎరుపు రంగులోకి మారుతాయి. ఇది వెచ్చని, తేమతో కూడిన వాతావరణంలో వ్యాపిస్తుంది.\n\nనివారణ: సోకిన మొక్కలను తొలగించి నాశనం చేయండి. ప్రతి సంవత్సరం పంట మార్పిడి చేయండి. తడి వాతావరణంలో ప్రతి 7-10 రోజులకు ఒకసారి రాగి ఆధారిత శిలీంద్ర సంహారిణిని వాడండి.",
+    kn: "ಬ್ಯಾಕ್ಟೀರಿಯಾದ ತಾಣವು ಕ್ಸಾಂಥೋಮೋನಾಸ್ ಬ್ಯಾಕ್ಟೀರಿಯಾದಿಂದ ಉಂಟಾಗುವ ಕಾಯಿಲೆಯಾಗಿದೆ. ಇದು ಎಲೆಗಳ ಮೇಲೆ ಸಣ್ಣ ನೀರಿನಿಂದ ಕೂಡಿದ ಕಲೆಗಳನ್ನು ಉಂಟುಮಾಡುತ್ತದೆ, ಅವು ಕಂದು-ಕೆಂಪು ಬಣ್ಣಕ್ಕೆ ತಿರುಗುತ್ತವೆ. ಇದು ಬೆಚ್ಚಗಿನ, ಆರ್ದ್ರ ವಾತಾವರಣದಲ್ಲಿ ಹರಡುತ್ತದೆ.\n\nಚಿಕಿತ್ಸೆ: ಸೋಂಕಿತ ಸಸ್ಯಗಳನ್ನು ತೆಗೆದುಹಾಕಿ ಮತ್ತು ನಾಶಪಡಿಸಿ. ಪ್ರತಿ ವರ್ಷ ಬೆಳೆ ಸರದಿಯನ್ನು ಅನುಸರಿಸಿ. ಆರ್ದ್ರ ವಾತಾವರಣದಲ್ಲಿ ಪ್ರತಿ 7-10 ದಿನಗಳಿಗೊಮ್ಮೆ ತಾಮ್ರ ಆಧಾರಿತ ಶಿಲೀಂಧ್ರನಾಶಕವನ್ನು ಬಳಸಿ."
+  },
+  {
+    keys: ["mosaic virus","mosaic","tomv","tmv","मोज़ेक वायरस","मोज़ेक","मोजेक","மொசைக் வைரஸ்","மொசைக்","మొజాయిక్ వైరస్","మొజాయిక్","మొజాయిక్ వైరస్","ಮೊಸಾಯಿಕ್ ವೈರಸ್","ಮೊಸಾಯಿಕ್","ಮೋಜಾಯಿಕ್ ವೈರಸ್"],
+    answer: "Mosaic Virus causes yellow-green mosaic patterns, leaf curling, and stunted growth in tomato plants. It spreads through infected tools, hands, or aphids.\n\nRemedies: Remove infected plants immediately. Use yellow sticky traps to catch aphids. Wash hands and disinfect tools before touching plants. Spray neem oil or insecticidal soap.",
+    hi: "मोज़ेक वायरस टमाटर के पौधों में पीले-हरे मोज़ेक पैटर्न, पत्तियों का मुड़ना और पौधों का छोटा रह जाना जैसी समस्याएं पैदा करता है। यह संक्रमित औजारों, हाथों या एफिड्स (कीड़ों) के माध्यम से फैलता है।\n\nउपचार: संक्रमित पौधों को तुरंत हटा दें। कीड़ों को पकड़ने के लिए पीले चिपचिपे जाल का उपयोग करें। पौधों को छूने से पहले हाथ धोएं और औजारों को कीटाणुरहित करें। नीम का तेल या कीटनाशक साबुन का स्प्रे करें।",
+    ta: "மொசைக் வைரஸ் தக்காளி செடிகளில் மஞ்சள்-பச்சை மொசைக் வடிவங்கள், இலை சுருட்டல் மற்றும் குன்றிய வளர்ச்சியை ஏற்படுத்துகிறது. இது பாதிக்கப்பட்ட கருவிகள், கைகள் அல்லது அசுவினிகள் மூலம் பரவுகிறது.\n\nசிகிச்சை: பாதிக்கப்பட்ட செடிகளை உடனடியாக அகற்றவும். அசுவினிகளைப் பிடிக்க மஞ்சள் ஒட்டும் பொறிகளைப் பயன்படுத்தவும். செடிகளைத் தொடுவதற்கு முன் கைகளைக் கழுவி கருவிகளை கிருமி நீக்கம் செய்யவும். வேப்ப எண்ணெய் அல்லது பூச்சிக்கொல்லி சோப்பைப் தெளிக்கவும்.",
+    te: "మొజాయిక్ వైరస్ టొమాటో మొక్కలలో పసుపు-పచ్చని మొజాయిక్ నమూనాలు, ఆకులు ముడుచుకుపోవడం మరియు కుంచించుకుపోయిన ఎదుగుదలకు కారణమవుతుంది. ఇది సోకిన పనిముట్లు, చేతులు లేదా అఫిడ్స్ ద్వారా వ్యాపిస్తుంది.\n\nనివారణ: సోకిన మొక్కలను వెంటనే తొలగించండి. అఫిడ్స్ పట్టుకోవడానికి పసుపు రంగు జిగురు ఉచ్చులను వాడండి. మొక్కలను తాకడానికి ముందు చేతులు కడుక్కోవాలి మరియు పనిముట్లను క్రిమిరహితం చేయాలి. వేప నూనె లేదా కీటక సంహారిణి సబ్బును పిచికారీ చేయండి.",
+    kn: "ಮೊಸಾಯಿಕ್ ವೈರಸ್ ಟೊಮೆಟೊ ಸಸ್ಯಗಳಲ್ಲಿ ಹಳದಿ-ಹಸಿರು ಮೊಸಾಯಿಕ್ ಮಾದರಿಗಳು, ಎಲೆ ಸುರುಳಿಯಾಗುವುದು ಮತ್ತು ಕುಂಠಿತ ಬೆಳವಣಿಗೆಗೆ ಕಾರಣವಾಗುತ್ತದೆ. ಇದು ಸೋಂಕಿತ ಉಪಕರಣಗಳು, ಕೈಗಳು ಅಥವಾ ಗಿಡಹೇನುಗಳ ಮೂಲಕ ಹರಡುತ್ತದೆ.\n\nಚಿಕಿತ್ಸೆ: ಸೋಂಕಿತ ಸಸ್ಯಗಳನ್ನು ತಕ್ಷಣವೇ ತೆಗೆದುಹಾಕಿ. ಗಿಡಹೇನುಗಳನ್ನು ಹಿಡಿಯಲು ಹಳದಿ ಅಂಟಿಕೊಳ್ಳುವ ಬಲೆಗಳನ್ನು ಬಳಸಿ. ಸಸ್ಯಗಳನ್ನು ಮುಟ್ಟುವ ಮೊದಲು ಕೈಗಳನ್ನು ತೊಳೆಯಿರಿ ಮತ್ತು ಉಪಕರಣಗಳನ್ನು ಸೋಂಕುರಹಿತಗೊಳಿಸಿ. ಬೇವಿನ ಎಣ್ಣೆ ಅಥವಾ ಕೀಟನಾಶಕ ಸೋಪನ್ನು ಸಿಂಪಡಿಸಿ."
+  },
+  {
+    keys: ["leaf mold","leafmod","leaf mod","लीफ मोल्ड","लीफमोल्ड","இலை அச்சு","இலை அச்சு நோய்","ఆకు అచ్చు","ఆకు అచ్చు వ్యాధి","ఎలె ಅಚ್ಚು","ಎಲೆ ಅಚ್ಚು","ಲೀಫ್ ಮೋರ್ಡ್","ಲೀಫ್ ಮೋಲ್ಡ್","mold","fungus"],
+    answer: "Leaf Mold is a fungal disease caused by Passalora fulva. It thrives in high humidity above 85%. Yellow spots appear on the upper surface and olive-green spores on the underside.\n\nRemedies: Remove and destroy infected leaves. Improve air circulation. Treat with copper spray or chlorothalonil fungicide. Avoid overhead watering.",
+    hi: "लीफ मोल्ड एक कवक रोग (fungal disease) है जो पैसालोरा फुल्वा के कारण होता. यह 85% से अधिक आर्द्रता में पनपता है। ऊपरी सतह पर पीले धब्बे और नीचे की तरफ जैतून-हरे रंग के बीजाणु दिखाई देते हैं।\n\nउपचार: संक्रमित पत्तियों को हटा दें और नष्ट कर दें। हवा के संचार में सुधार करें। कॉपर स्प्रे या क्लोरोथालोनिल कवकनाशी के साथ उपचार करें। ऊपर से पानी डालने से बचें।",
+    ta: "இலை அச்சு என்பது பாசலோரா ஃபுல்வாவால் ஏற்படும் ஒரு பூஞ்சை நோயாகும். இது 85% க்கும் அதிகமான ஈரப்பதத்தில் வளர்கிறது. மேல் பகுதியில் மஞ்சள் புள்ளிகளும், அடிப்பகுதியில் ஆலிவ்-பச்சை நிற வித்திகளும் தோன்றும்.\n\nசிகிச்சை: பாதிக்கப்பட்ட இலைகளை அகற்றி அழிக்கவும். காற்று சுழற்சிைய மேம்படுத்தவும். தாமிரம் சார்ந்த தெளிப்பு அல்லது குளோரோதலோனில் பூஞ்சைக் கொல்லி மூலம் சிகிச்சை அளிக்கவும். இலைகளின் மேல் தண்ணீர் ஊற்றுவதைத் தவிர்க்கவும்.",
+    te: "ఆకు అచ్చు అనేది పాసలోరా ఫుల్వా వల్ల కలిగే శిలీంధ్ర వ్యాధి. ఇది 85% కంటే ఎక్కువ తేమలో వృద్ధి చెందుతుంది. పై ఉపరితలంపై పసుపు మచ్చలు మరియు క్రింది భాగంలో ఆలివ్-ఆకుపచ్చ బీజాలు కనిపిస్తాయి.\n\nనివారణ: సోకిన ఆకులను తొలగించి నాశనం చేయండి. గాలి ప్రసరణను మెరుగుపరచండి. రాగి పిచికారీ లేదా క్లోరోథలోనిల్ శిలీంద్ర సంహారిణితో చికిత్స చేయండి. మొక్కల పై నుండి నీరు పోయడం మానుకోండి.",
+    kn: "ಎಲೆ ಅಚ್ಚು ಪಾಸಲೋರಾ ಫುಲ್ವಾದಿಂದ ಉಂಟಾಗುವ ಶಿಲೀಂಧ್ರ ಕಾಯಿಲೆಯಾಗಿದೆ. ಇದು 85% ಕ್ಕಿಂತ ಹೆಚ್ಚಿನ ಆರ್ದ್ರತೆಯಲ್ಲಿ ಬೆಳೆಯುತ್ತದೆ. ಮೇಲ್ಮೈಯಲ್ಲ ಹಳದಿ ಕಲೆಗಳು ಮತ್ತು ಕೆಳಭಾಗದಲ್ಲಿ ಆಲಿವ್-ಹಸಿರು ಬೀಜಕಗಳು ಕಾಣಿಸಿಕೊಳ್ಳುತ್ತವೆ.\n\nಚಿಕಿತ್ಸೆ: ಸೋಂಕಿತ ಎಲೆಗಳನ್ನು ತೆಗೆದುಹಾಕಿ ಮತ್ತು ನಾಶಪಡಿಸಿ. ಗಾಳಿಯ ಸಂಚಾರವನ್ನು ಸುಧಾರಿಸಿ. ತಾಮ್ರದ ಸ್ಪ್ರೇ ಅಥವಾ ಕ್ಲೋರೋಥಲೋನಿಲ್ ಶಿಲೀಂಧ್ರನಾಶಕದಿಂದ ಚಿಕಿತ್ಸೆ ನೀಡಿ. ಎಲೆಗಳ ಮೇಲೆ ನೀರು ಹಾಕುವುದನ್ನು ತಪ್ಪಿಸಿ."
+  },
+  {
+    keys: ["curl virus","yellow leaf curl","tylcv","curl","कर्ल वायरस","पत्ता मरोड़","पीला पत्ता","சுருள் வைரஸ்","இலை சுருள்","కర్ల్ వైరస్","ఆకు ముడత","కర్ల్ వైరస్","ಕರ್ಲ್ ವೈರಸ್","ಎಲೆ ಸುರುಳಿ","leaf curl"],
+    answer: "Tomato Yellow Leaf Curl Virus is transmitted by the whitefly. Leaves curl upward, turn yellow, and plants become stunted.\n\nRemedies: Use yellow sticky traps. Spray insecticides. Remove and bury infected plants. Use virus-resistant varieties.",
+    hi: "टमाटर का पीला पत्ता कर्ल वायरस सफेद मक्खी द्वारा फैलता है। पत्तियां ऊपर की ओर मुड़ जाती हैं, पीली हो जाती हैं।\n\nउपचार: सफेद मक्खियों को पकड़ने के लिए पीले चिपचिपे जाल का उपयोग करें। कीटनाशकों का स्प्रे करें। संक्रमित पौधों को नष्ट करें।",
+    ta: "தக்காளி மஞ்சள் இலை சுருள் வைரஸ் வெள்ளை ஈக்கள் மூலம் பரவுகிறது. இலைகள் மேல்நோக்கிச் சுருங்கி, மஞ்சளாக மாறும்.\n\nதீர்வு: மஞ்சள் ஒட்டும் பொறிகளைப் பயன்படுத்தவும். பூச்சிக்கொல்லிகளைப் தெளிக்கவும்.",
+    te: "టొమాటో ఎల్లో లీఫ్ కర్ల్ వైరస్ తెల్ల దోమ ద్వారా వ్యాపిస్తుంది. ఆకులు పైకి ముడుచుకుంటాయి, పసుపు రంగులోకి మారుతాయి.\n\nనివారణ: పసుపు జిగురు ఉచ్చులు మరియు కీటక సంహారిణి వాడండి.",
+    kn: "ಟೊಮೆಟೊ ಹಳದಿ ಎಲೆ ಸುರುಳಿ ವೈರಸ್ ಬಿಳಿ ನೊಣದಿಂದ ಹರಡುತ್ತದೆ. ಎಲೆಗಳು ಮೇಲಕ್ಕೆ ಸುರುಳಿಯಾಗುತ್ತವೆ ಮತ್ತು ಹಳದಿ ಬಣ್ಣಕ್ಕೆ ತಿರುಗುತ್ತವೆ.\n\nಪರಿಹಾರ: ಹಳದಿ ಅಂಟಿಕೊಳ್ಳುವ ಬಲೆಗಳು ಮತ್ತು ಕೀಟನಾಶಕಗಳನ್ನು ಬಳಸಿ."
+  },
+  {
+    keys: ["septoria","spectoria","septoria leaf spot","सेप्टोरिया","செப்டோரியா","సెప్టోరియా","ಸೆಪ್ಟೋರಿಯಾ","leaf spot"],
+    answer: "Septoria Leaf Spot causes small circular spots with dark borders and tan centers on tomato leaves.\n\nRemedies: Remove infected leaves. Avoid wetting foliage. Apply copper fungicide. Ensure good air circulation.",
+    hi: "सेप्टोरिया लीफ स्पॉट टमाटर की पत्तियों पर काले घेरे वाले छोटे धब्बे पैदा करता है।\n\nउपचार: संक्रमित पत्तियों को हटा दें। फंगिसाइड का उपयोग करें।",
+    ta: "செப்டோரியா இலை புள்ளி தக்காளி இலைகளில் சிறிய வட்டமான புள்ளிகளை ஏற்படுத்துகிறது.\n\nசிகிச்சை: பாதிக்கப்பட்ட இலைகளை அகற்றவும்.",
+    te: "సెప్టోరియా లీఫ్ స్పాట్ టొమాటో ఆకులపై చిన్న వృత్తాకార మచ్చలను కలిగిస్తుంది.\n\nనివారణ: సోకిన ఆకులను తొలగించండి.",
+    kn: "ಸೆಪ್ಟೋರಿಯಾ ಎಲೆ ಕಲೆಯು ಟೊಮೆಟೊ ಎಲೆಗಳ ಮೇಲೆ ಸಣ್ಣ ವೃತ್ತಾಕಾರದ ಕಲೆಗಳನ್ನು ಉಂಟುಮಾಡುತ್ತದೆ.\n\nಚಿಕಿತ್ಸೆ: ಸೋಂಕಿತ ಎಲೆಗಳನ್ನು ತೆಗೆದುಹಾಕಿ."
+  },
+  {
+    keys: ["healthy","no disease","plant is fine","good","स्वस्थ","ঠিক","ஆரோக்கியமான","ఆరోగ్యకరమైన","ಆರೋಗ್ಯಕರ"],
+    answer: "Your plant looks healthy! Keep up the good work. Water at the base and ensure plenty of sunlight.",
+    hi: "आपका पौधा स्वस्थ लग रहा है! अच्छा काम जारी रखें। पौधों के आधार पर पानी दें और पर्याप्त धूप सुनिश्चित करें।",
+    ta: "உங்கள் செடி ஆரோக்கியமாக இருக்கிறது! தொடர்ந்து நன்றாகப் பராமரிக்கவும்.",
+    te: "మీ మొక్క ఆరోగ్యంగా ఉంది! ఇలాగే కొనసాగించండి.",
+    kn: "ನಿಮ್ಮ ಸಸ್ಯವು ಆರೋಗ್ಯಕರವಾಗಿ ಕಾಣುತ್ತಿದೆ! ಇದೇ ರೀತಿ ಪೋಷಿಸಿ."
+  },
+  {
+    keys: ["help","assist","सहायता","मदद","உதவி","సహాయం","ಸಹಾಯ"],
+    answer: "I can help with Bacterial Spot, Mosaic Virus, Leaf Mold, Curl Virus, and Septoria. Ask about symptoms or prevention.",
+    hi: "मैं बैक्टीरियल स्पॉट, मोज़ेक वायरस, लीफ मोल्ड, कर्ल वायरस और सेप्टोरिया के बारे में मदद कर सकता हूँ।",
+    ta: "பாக்டீரியா புள்ளி, மொசைக் வைரஸ் மற்றும் இலை சுருள் பற்றி நான் உதவ முடியும்.",
+    te: "నేను బాక్టీరియల్ స్పాట్ మరియు ఇతర ఆకు వ్యాధుల గురించి సహాయం చేయగలను.",
+    kn: "ಬ್ಯಾಕ್ಟೀರಿಯಾದ ತಾಣ ಮತ್ತು ಇತರ ಎಲೆ ರೋಗಗಳ ಬಗ್ಗೆ ನಾನು ಸಹಾಯ ಮಾಡಬಲ್ಲೆ."
+  },
+  {
+    keys: ["hello","hi","hey","नमस्ते","வணக்கம்","నమస్కారం","ನಮಸ್ಕಾರ"],
+    answer: "Hello! How can I assist with your tomato plants today?",
+    hi: "नमस्ते! मैं आज आपकी कैसे मदद कर सकता हूँ?",
+    ta: "வணக்கம்! இன்று நான் உங்களுக்கு எப்படி உதவ முடியும்?",
+    te: "నమస్కారం! ఈ రోజు నేను మీకు ఎలా సహాయపడగలను?",
+    kn: "ನಮಸ್ಕಾರ! ಇಂದು ನಾನು ನಿಮಗೆ ಹೇಗೆ ಸಹಾಯ ಮಾಡಲಿ?"
+  },
+  {
+    keys: ["prevention","prevent","tips","रोकथाम","बचाव","उपाय","தடுப்பு","தடுத்தல்","నివారణ","చిట్కాలు","ತಡೆಗಟ್ಟುವಿಕೆ","ಸಲಹೆಗಳು"],
+    answer: "To prevent leaf diseases: 1. Water at the base of plants, not on leaves. 2. Ensure good air circulation. 3. Rotate crops every year. 4. Use disease-resistant seeds. 5. Remove any infected leaves immediately.",
+    hi: "पत्तियों की बीमारियों को रोकने के लिए: 1. पौधों के आधार पर पानी दें। 2. हवा के संचार का ध्यान रखें। 3. हर साल फसल चक्र अपनाएं। 4. रोग-प्रतिरोधी बीजों का उपयोग करें।",
+    ta: "இலை நோய்களைத் தடுக்க: 1. செடிகளின் அடிப்பகுதியில் தண்ணீர் ஊற்றவும். 2. நல்ல காற்று சுழற்சியை உறுதி செய்யவும். 3. பயிர் சுழற்சியைப் பின்பற்றவும்.",
+    te: "ఆకు వ్యాధులను నివారించడానికి: 1. మొక్కల మొదళ్లలో నీరు పోయాలి. 2. గాలి ప్రసరణ బాగుండాలి. 3. ప్రతి సంవత్సరం పంట మార్పిడి చేయాలి.",
+    kn: "ಎಲೆ ರೋಗಗಳನ್ನು ತಡೆಗಟ್ಟಲು: 1. ಗಿಡಗಳ ಬುಡಕ್ಕೆ ನೀರು ಹಾಕಿ. 2. ಉತ್ತಮ ಗಾಳಿಯ ಸಂಚಾರವಿರಲಿ. 3. ಬೆಳೆ ಸರದಿಯನ್ನು ಅನುಸರಿಸಿ."
+  }
+];
+
+const micArea = document.getElementById("mic-area");
+const micSvg = document.getElementById("mic-svg");
+const stopSvg = document.getElementById("stop-svg");
+const waveform = document.getElementById("waveform");
+const vaStatus = document.getElementById("va-status");
+const vaTranscript = document.getElementById("va-transcript");
+const answerBubble = document.getElementById("answer-bubble");
+const abText = document.getElementById("ab-text");
+const speakInd = document.getElementById("speak-indicator");
+const micWarning = document.getElementById("mic-warning");
+
+let isListening = false;
+let recognition;
+let currentLang = "en-IN";
+let currentUtterance; // Global reference to prevent garbage collection
+
+function setLang(lang, btn) {
+  currentLang = lang;
+  document.querySelectorAll(".lang-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  vaStatus.textContent = "Language: " + btn.innerText;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.getVoices();
+}
+
+// ── Google Translate TTS fallback for languages with no native voice ──
+let gttsAudio = null;  // global ref to prevent GC
+
+function speakWithGoogleTTS(text, langCode, onEnd) {
+  // Use server-side /tts endpoint (gTTS) — avoids CORS and works for all Indian languages
+  let clean = text.replace(/\\n/g, " ").replace(/\n/g, " ").replace(/\*/g, "").replace(/\s\s+/g, ' ').trim();
+  
+  // Split into chunks of ~190 chars at word boundaries (gTTS handles longer, but safer)
+  const maxLen = 190;
+  const allChunks = [];
+  while (clean.length > 0) {
+    if (clean.length <= maxLen) {
+      allChunks.push(clean);
+      break;
+    }
+    let cut = clean.lastIndexOf(' ', maxLen);
+    if (cut === -1 || cut < 50) cut = maxLen;
+    allChunks.push(clean.substring(0, cut));
+    clean = clean.substring(cut).trim();
+  }
+
+  let idx = 0;
+  speakInd.classList.add("active");
+
+  const playNext = () => {
+    if (idx >= allChunks.length) {
+      speakInd.classList.remove("active");
+      gttsAudio = null;
+      if (onEnd) onEnd();
+      return;
+    }
+    const url = "/tts?lang=" + langCode + "&text=" + encodeURIComponent(allChunks[idx]);
+    gttsAudio = new Audio(url);
+    gttsAudio.playbackRate = 1.0;
+    gttsAudio.onended = () => { idx++; playNext(); };
+    gttsAudio.onerror = (e) => { 
+      console.warn("TTS chunk failed:", e); 
+      idx++; playNext(); 
+    };
+    gttsAudio.play().catch((e) => { console.warn("TTS play error:", e); idx++; playNext(); });
+  };
+  playNext();
+}
+
+function hasNativeVoice(langCode) {
+  const voices = window.speechSynthesis.getVoices();
+  const regionalNames = { "ta": "tamil", "te": "telugu", "kn": "kannada" };
+  const name = regionalNames[langCode];
+  return voices.some(v => 
+    v.lang.toLowerCase().startsWith(langCode) || 
+    v.lang.toLowerCase().startsWith(langCode + "_") ||
+    (name && v.name.toLowerCase().includes(name))
+  );
+}
+
+function speakWithWebAPI(text, onEnd) {
+  const langCode = currentLang.split("-")[0].toLowerCase();
+  const voices = window.speechSynthesis.getVoices();
+  let selectedVoice = null;
+  
+  selectedVoice = voices.find(v => v.lang.toLowerCase() === currentLang.toLowerCase() || v.lang.toLowerCase() === currentLang.toLowerCase().replace("-", "_"));
+  if (!selectedVoice) selectedVoice = voices.find(v => v.lang.toLowerCase().startsWith(langCode) && v.name.includes("Google"));
+  if (!selectedVoice) selectedVoice = voices.find(v => v.lang.toLowerCase().startsWith(langCode));
+
+  let clean = text.replace(/\\n/g, " ").replace(/\n/g, " ").replace(/\*/g, "").replace(/\s\s+/g, ' ').trim();
+  
+  currentUtterance = new SpeechSynthesisUtterance(clean);
+  currentUtterance.lang = currentLang;
+  if (selectedVoice) currentUtterance.voice = selectedVoice;
+  currentUtterance.rate = 0.9;
+  currentUtterance.pitch = 1.0;
+  
+  speakInd.classList.add("active");
+  currentUtterance.onend = () => { speakInd.classList.remove("active"); currentUtterance = null; if (onEnd) onEnd(); };
+  currentUtterance.onerror = () => { speakInd.classList.remove("active"); currentUtterance = null; };
+  
+  window.speechSynthesis.resume();
+  window.speechSynthesis.speak(currentUtterance);
+}
+
+function speak(text, onEnd) {
+  // Stop any previous speech
+  window.speechSynthesis.cancel();
+  if (gttsAudio) { gttsAudio.pause(); gttsAudio = null; }
+  
+  const langCode = currentLang.split("-")[0].toLowerCase();
+  
+  // For Tamil, Telugu, Kannada: always use Google Translate TTS
+  // (these voices are almost never installed on Windows)
+  if (["ta", "te", "kn"].includes(langCode)) {
+    console.log("Using Google Translate TTS for", langCode);
+    speakWithGoogleTTS(text, langCode, onEnd);
+  } else if (hasNativeVoice(langCode)) {
+    console.log("Using native Web Speech API for", langCode);
+    speakWithWebAPI(text, onEnd);
+  } else {
+    // Fallback to Google TTS for any other missing voice
+    console.log("No native voice, falling back to GTTS for", langCode);
+    speakWithGoogleTTS(text, langCode, onEnd);
+  }
+}
+
+function showAnswer(text, redirect) {
+  answerBubble.style.display = "block";
+  abText.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+  setTimeout(() => {
+    abText.innerText = text;
+    speak(text, redirect ? () => setTimeout(() => window.location.href = redirect, 800) : null);
+  }, 600);
+}
+
+function findAnswer(query) {
+  const q = query.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,"").trim();
+  for (const item of KB) {
+    if (item.keys.some(k => q.includes(k.toLowerCase()))) return item;
+  }
+  return null;
+}
+
+function ask(query) {
+  console.log("Asking:", query, "in", currentLang);
+  vaTranscript.textContent = '"' + query + '"';
+  const langLabels = {
+    "en-IN": { processing: "Thinking...", found: "Answer:", fallback: "I don't have information on that." },
+    "hi-IN": { processing: "सोच रहा हूँ...", found: "उत्तर:", fallback: "मेरे पास उस बारे में जानकारी नहीं है।" },
+    "ta-IN": { processing: "யோசிக்கிறேன்...", found: "பதில் இதோ:", fallback: "மன்னிக்கவும், அதைப் பற்றிய தகவல் என்னிடம் இல்லை." },
+    "te-IN": { processing: "ఆలోచిస్తున్నాను...", found: "సమాధానం:", fallback: "క్షమించండి, ఆ సమాచారం నా దగ్గర లేదు." },
+    "kn-IN": { processing: "ಯೋಚಿಸುತ್ತಿದ್ದೇನೆ...", found: "ಉತ್ತರ ಇಲ್ಲಿದೆ:", fallback: "ಕ್ಷಮಿಸಿ, ನನ್ನ ಬಳಿ ಆ ಮಾಹಿತಿ ಇಲ್ಲ." }
+  };
+  const labels = langLabels[currentLang] || langLabels["en-IN"];
+  vaStatus.textContent = labels.processing;
+  const match = findAnswer(query);
+  if (match) {
+    vaStatus.textContent = labels.found;
+    const langCode = currentLang.split('-')[0];
+    let answer = match[langCode] || match.answer;
+    console.log("Found answer in", langCode);
+    showAnswer(answer, match.redirect);
+  } else {
+    vaStatus.textContent = "Not found";
+    showAnswer(labels.fallback);
+  }
+}
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+function toggleListen() {
+  if (!SpeechRecognition) { vaStatus.textContent="Use Chrome"; return; }
+  isListening ? stopListening() : startListening();
+}
+function startListening() {
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(() => beginRecognition());
+}
+function beginRecognition() {
+  isListening = true;
+  micArea.classList.add("listening");
+  waveform.classList.add("active");
+  vaStatus.textContent = "Listening...";
+  recognition = new SpeechRecognition();
+  recognition.lang = currentLang;
+  recognition.onresult = (e) => {
+    const t = e.results[0][0].transcript;
+    vaTranscript.textContent = '"' + t + '"';
+    if (e.results[0].isFinal) { stopListening(); setTimeout(() => ask(t), 200); }
+  };
+  recognition.onerror = () => stopListening();
+  recognition.onend = () => { if(isListening) stopListening(); };
+  recognition.start();
+}
+function stopListening() {
+  isListening = false;
+  micArea.classList.remove("listening");
+  waveform.classList.remove("active");
+  if (recognition) try { recognition.stop(); } catch(e){}
+}
+
+window.speechSynthesis.getVoices();
+if (window.speechSynthesis.onvoiceschanged !== undefined) {
+  window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+}
+</script>
+{% endblock body %}
