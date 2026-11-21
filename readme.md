@@ -1,0 +1,1 @@
+this is the readme file for the leaf disease detection project

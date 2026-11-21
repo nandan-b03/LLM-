@@ -1,0 +1,406 @@
+{% extends 'base.html' %}
+{% block pagetitle %}AI Agriculture Assistant · Leaf Disease Detector{% endblock %}
+{% block body %}
+<style>
+/* ── LAYOUT ── */
+.asst-wrap{padding:40px 0 72px;}
+.asst-header{text-align:center;margin-bottom:36px;}
+.asst-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:3px;text-transform:uppercase;color:var(--green);margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:10px;opacity:0.85;}
+.asst-eyebrow::before,.asst-eyebrow::after{content:'';width:28px;height:1px;background:rgba(0,201,110,0.4);}
+.asst-header h1{font-family:'Syne',sans-serif;font-size:clamp(1.8rem,4vw,2.6rem);font-weight:800;letter-spacing:-0.8px;color:rgba(255,255,255,0.95);margin-bottom:8px;line-height:1.1;}
+.asst-header h1 span{color:var(--green);}
+.asst-header p{color:var(--muted);font-size:0.88rem;font-weight:300;}
+
+/* ── CNN CONTEXT BANNER ── */
+.ctx-banner{background:rgba(0,201,110,0.06);border:1px solid rgba(0,201,110,0.2);border-radius:12px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:flex-start;gap:14px;}
+.ctx-icon{flex-shrink:0;width:32px;height:32px;border-radius:8px;background:rgba(0,201,110,0.12);display:flex;align-items:center;justify-content:center;}
+.ctx-body .ctx-title{font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;color:var(--green);margin-bottom:5px;}
+.ctx-body .ctx-info{font-size:0.85rem;color:var(--text);line-height:1.6;}
+.ctx-conf{font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--muted);}
+.conf-low{color:#e09060!important;}
+
+/* ── LANGUAGE BUTTONS ── */
+.lang-strip{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:20px;justify-content:center;}
+.lang-pill{font-family:'JetBrains Mono',monospace;font-size:0.65rem;padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.2s;}
+.lang-pill.active{background:rgba(148,212,84,0.12);border-color:var(--lime);color:var(--lime);box-shadow:0 0 14px rgba(148,212,84,0.1);}
+.lang-pill:hover:not(.active){background:rgba(255,255,255,0.05);border-color:var(--border-h);color:var(--text);}
+
+/* ── CHAT WINDOW ── */
+.chat-window{background:var(--glass);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 20px 64px rgba(0,0,0,0.42);}
+.chat-messages{height:420px;overflow-y:auto;padding:24px 20px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth;}
+.chat-messages::-webkit-scrollbar{width:4px;}
+.chat-messages::-webkit-scrollbar-track{background:transparent;}
+.chat-messages::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px;}
+
+/* ── MESSAGES ── */
+.msg{display:flex;gap:10px;animation:msgIn 0.3s ease both;}
+@keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg.user{flex-direction:row-reverse;}
+.msg-avatar{width:30px;height:30px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:0.7rem;}
+.msg-avatar.bot{background:linear-gradient(135deg,var(--green),#1e5c3a);}
+.msg-avatar.user{background:rgba(255,255,255,0.08);border:1px solid var(--border);}
+.msg-bubble{max-width:78%;padding:11px 15px;border-radius:12px;font-size:0.86rem;line-height:1.72;white-space:pre-wrap;}
+.msg.bot .msg-bubble{background:rgba(0,201,110,0.07);border:1px solid rgba(0,201,110,0.15);color:var(--text);border-radius:4px 12px 12px 12px;}
+.msg.user .msg-bubble{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);border-radius:12px 4px 12px 12px;}
+.msg-time{font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:rgba(255,255,255,0.2);margin-top:4px;}
+
+/* ── TYPING INDICATOR ── */
+.typing-indicator{display:none;gap:5px;align-items:center;padding:4px 0;}
+.typing-indicator.show{display:flex;}
+.typing-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:tdot 1s ease-in-out infinite;opacity:0.5;}
+.typing-dot:nth-child(2){animation-delay:.2s;}
+.typing-dot:nth-child(3){animation-delay:.4s;}
+@keyframes tdot{0%,100%{transform:translateY(0);opacity:.5}50%{transform:translateY(-5px);opacity:1}}
+
+/* ── INPUT ROW ── */
+.chat-input-wrap{padding:16px 20px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;background:rgba(0,0,0,0.12);}
+#chat-input{
+  flex:1;background:rgba(255,255,255,0.05);border:1px solid var(--border);
+  border-radius:10px;padding:10px 14px;font-size:0.86rem;color:var(--text);
+  font-family:'DM Sans',sans-serif;resize:none;min-height:42px;max-height:120px;
+  line-height:1.5;outline:none;transition:border-color 0.2s,box-shadow 0.2s;
+}
+#chat-input:focus{border-color:rgba(0,201,110,0.4);box-shadow:0 0 0 2px rgba(0,201,110,0.07);}
+#chat-input::placeholder{color:rgba(255,255,255,0.2);}
+.btn-send{width:42px;height:42px;border-radius:9px;background:linear-gradient(135deg,var(--green),#007d42);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;box-shadow:0 4px 16px rgba(0,201,110,0.3);}
+.btn-send:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,201,110,0.45);}
+.btn-send:disabled{opacity:0.4;pointer-events:none;}
+.btn-mic-chat{width:42px;height:42px;border-radius:9px;background:rgba(0,201,110,0.07);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;color:var(--muted);}
+.btn-mic-chat:hover{background:rgba(0,201,110,0.14);border-color:var(--border-h);color:var(--text);}
+.btn-mic-chat.listening{background:rgba(192,57,43,0.2);border-color:rgba(192,57,43,0.4);color:#e07060;animation:micPulse 1s ease-in-out infinite;}
+@keyframes micPulse{0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,0.3)}50%{box-shadow:0 0 0 6px rgba(192,57,43,0)}}
+
+/* ── SUGGESTIONS ── */
+.suggestions-wrap{margin-top:18px;}
+.sug-label{font-family:'JetBrains Mono',monospace;font-size:0.58rem;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.22);margin-bottom:10px;}
+.sug-chips{display:flex;flex-wrap:wrap;gap:7px;}
+.sug-chip{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:7px;padding:7px 13px;font-size:0.76rem;color:rgba(255,255,255,0.4);cursor:pointer;transition:all 0.2s;user-select:none;}
+.sug-chip:hover{background:rgba(0,201,110,0.08);border-color:rgba(0,201,110,0.3);color:var(--lime);transform:translateY(-1px);}
+
+/* ── ACTIONS ROW ── */
+.chat-actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center;}
+.btn-clear{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 14px;font-size:0.76rem;cursor:pointer;transition:all 0.2s;}
+.btn-clear:hover{border-color:rgba(220,80,60,0.4);color:#e07060;background:rgba(220,80,60,0.05);}
+.offline-note{background:rgba(220,120,40,0.08);border:1px solid rgba(220,120,40,0.25);border-radius:10px;padding:12px 16px;font-size:0.82rem;color:rgba(255,200,100,0.75);line-height:1.6;margin-bottom:16px;}
+.speak-on-btn{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 12px;font-size:0.74rem;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:5px;}
+.speak-on-btn.active{border-color:rgba(0,201,110,0.4);color:var(--green);background:rgba(0,201,110,0.06);}
+.speak-on-btn:hover{border-color:var(--border-h);color:var(--text);}
+</style>
+
+<div class="asst-wrap">
+  <div class="asst-header">
+    <div class="asst-eyebrow">AI Agriculture Assistant</div>
+    <h1>Ask About Your <span>Crops</span></h1>
+    <p>Powered by AI · Multilingual · Voice-enabled · Context-aware</p>
+  </div>
+
+  {% if not llm_available %}
+  <div class="offline-note">
+    ⚠️ <strong>AI Assistant Offline:</strong> No LLM API key found. The assistant will provide offline fallback responses.
+    Set <code>GEMINI_API_KEY</code> in your <code>.env</code> file to enable full AI responses.
+    Provider detected: <strong>{{ llm_provider }}</strong>
+  </div>
+  {% endif %}
+
+  <!-- CNN Context Banner -->
+  {% if cnn_context and cnn_context.disease %}
+  <div class="ctx-banner">
+    <div class="ctx-icon">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <div class="ctx-body">
+      <div class="ctx-title">Last CNN Prediction</div>
+      <div class="ctx-info">
+        Disease detected: <strong>{{ cnn_context.display }}</strong>
+        <span class="ctx-conf {% if cnn_context.confidence and cnn_context.confidence|float < 0.6 %}conf-low{% endif %}">
+          · Confidence: {{ (cnn_context.confidence * 100)|round(1) }}%
+          {% if cnn_context.confidence and cnn_context.confidence|float < 0.6 %} ⚠️ Low{% endif %}
+        </span>
+      </div>
+      <div style="font-size:0.78rem;color:var(--muted);margin-top:4px;">Ask me anything about this disease below ↓</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Language Selector -->
+  <div class="lang-strip" id="lang-strip">
+    <button class="lang-pill {% if lang=='en' %}active{% endif %}" onclick="setLang('en',this)">English</button>
+    <button class="lang-pill {% if lang=='kn' %}active{% endif %}" onclick="setLang('kn',this)">ಕನ್ನಡ</button>
+    <button class="lang-pill {% if lang=='ta' %}active{% endif %}" onclick="setLang('ta',this)">தமிழ்</button>
+    <button class="lang-pill {% if lang=='te' %}active{% endif %}" onclick="setLang('te',this)">తెలుగు</button>
+  </div>
+
+  <!-- Chat Window -->
+  <div class="chat-window">
+    <div class="chat-messages" id="chat-messages">
+      <!-- Welcome message -->
+      <div class="msg bot" id="welcome-msg">
+        <div class="msg-avatar bot">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round"><path d="M12 2C6 2 2 8 2 14c0 4 2.5 7 6 8 0-3 1-6 4-8-3 2-4 5-4 8 2 1 4 1.5 4 1.5C13 22 15 19 15 16c0-2-1-4-3-5 4 1 6 4 6 7 2.5-1.5 4-4.5 4-8 0-6-4-8-10-8z"/></svg>
+        </div>
+        <div>
+          <div class="msg-bubble" id="welcome-bubble">Hello! I'm your AI Agriculture Assistant. I can help you understand plant diseases, prevention methods, irrigation, fertilizers, and more.
+{% if cnn_context and cnn_context.disease %}Ask me anything about the detected {{ cnn_context.display }} disease, or any other agricultural question!{% else %}Upload a leaf image on the AI Engine page first to get disease-specific advice, or ask me any agricultural question!{% endif %}</div>
+          <div class="msg-time" id="welcome-time"></div>
+        </div>
+      </div>
+      <!-- Typing indicator -->
+      <div class="msg bot" id="typing-msg" style="display:none;">
+        <div class="msg-avatar bot">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round"><path d="M12 2C6 2 2 8 2 14c0 4 2.5 7 6 8 0-3 1-6 4-8-3 2-4 5-4 8 2 1 4 1.5 4 1.5C13 22 15 19 15 16c0-2-1-4-3-5 4 1 6 4 6 7 2.5-1.5 4-4.5 4-8 0-6-4-8-10-8z"/></svg>
+        </div>
+        <div>
+          <div class="msg-bubble">
+            <div class="typing-indicator show">
+              <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input Row -->
+    <div class="chat-input-wrap">
+      <button class="btn-mic-chat" id="btn-mic" onclick="toggleMic()" title="Voice input">
+        <svg id="mic-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+      <textarea id="chat-input" placeholder="Ask about plant diseases, fertilizers, irrigation..." rows="1" onkeydown="handleKey(event)"></textarea>
+      <button class="btn-send" id="btn-send" onclick="sendMessage()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Action Row -->
+  <div class="chat-actions">
+    <button class="btn-clear" onclick="clearChat()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:inline;margin-right:5px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.65"/></svg>
+      Clear Chat
+    </button>
+    <button class="speak-on-btn" id="speak-toggle" onclick="toggleSpeak()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+      Auto-Speak
+    </button>
+    <a href="{{ url_for('index') }}" class="btn-clear" style="text-decoration:none;">← Back to AI Engine</a>
+  </div>
+
+  <!-- Suggested Questions -->
+  <div class="suggestions-wrap">
+    <div class="sug-label">Suggested Questions</div>
+    <div class="sug-chips" id="sug-chips">
+      {% for q in suggested_questions %}
+      <span class="sug-chip" onclick="askSuggestion('{{ q|replace("'","\\'")|e }}')">{{ q }}</span>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────────────────
+let chatHistory = [];
+let currentLang = "{{ lang }}";
+let autoSpeak   = false;
+let isListening = false;
+let recognition = null;
+let gttsAudio   = null;
+
+// ── LANG CODE → TTS code map ──────────────────────────────────────────────
+const TTS_CODES = { en: "en", kn: "kn", ta: "ta", te: "te" };
+const SPEECH_CODES = { en: "en-IN", kn: "kn-IN", ta: "ta-IN", te: "te-IN" };
+
+// ── SUGGESTED QUESTIONS per language ─────────────────────────────────────
+const SUG_QUESTIONS = {
+  en: ["Why does my plant have this disease?","How can I prevent this disease from spreading?","What should I do next?","Is this disease dangerous?","How can I protect healthy plants?","Best time to water tomato plants?","How to improve soil quality?"],
+  kn: ["ನನ್ನ ಸಸ್ಯಕ್ಕೆ ಈ ರೋಗ ಏಕೆ ಬಂದಿದೆ?","ಈ ರೋಗ ಹರಡದಂತೆ ತಡೆಯುವುದು ಹೇಗೆ?","ನಾನು ಮುಂದೆ ಏನು ಮಾಡಬೇಕು?","ಈ ರೋಗ ಅಪಾಯಕಾರಿಯೇ?","ಆರೋಗ್ಯಕರ ಸಸ್ಯಗಳನ್ನು ರಕ್ಷಿಸುವುದು ಹೇಗೆ?"],
+  ta: ["என் செடிக்கு இந்த நோய் ஏன் வந்தது?","இந்த நோய் பரவாமல் தடுப்பது எப்படி?","நான் அடுத்து என்ன செய்ய வேண்டும்?","இந்த நோய் ஆபத்தானதா?","ஆரோக்கியமான செடிகளை எப்படி பாதுகாப்பது?"],
+  te: ["నా మొక్కకు ఈ వ్యాధి ఎందుకు వచ్చింది?","ఈ వ్యాధి వ్యాపించకుండా ఎలా నివారించాలి?","నేను తర్వాత ఏమి చేయాలి?","ఈ వ్యాధి ప్రమాదకరమా?","ఆరోగ్యకరమైన మొక్కలను ఎలా రక్షించాలి?"]
+};
+
+const WELCOME_MSGS = {
+  en: "Hello! I'm your AI Agriculture Assistant. Ask me anything about plant diseases, crop care, or the detected disease.",
+  kn: "ನಮಸ್ಕಾರ! ನಾನು ನಿಮ್ಮ AI ಕೃಷಿ ಸಹಾಯಕ. ಸಸ್ಯ ರೋಗಗಳು, ಬೆಳೆ ಆರೈಕೆ ಬಗ್ಗೆ ಏನೂ ಕೇಳಿ.",
+  ta: "வணக்கம்! நான் உங்கள் AI விவசாய உதவியாளர். செடி நோய்கள், பயிர் பராமரிப்பு பற்றி எதுவும் கேளுங்கள்.",
+  te: "నమస్కారం! నేను మీ AI వ్యవసాయ సహాయకుడు. మొక్క వ్యాధులు, పంట సంరక్షణ గురించి ఏదైనా అడగండి."
+};
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+document.getElementById('welcome-time').textContent = now();
+document.getElementById('welcome-bubble').textContent = WELCOME_MSGS[currentLang] || WELCOME_MSGS.en;
+
+function now(){
+  return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+}
+
+// ── LANGUAGE ──────────────────────────────────────────────────────────────
+function setLang(lang, btn){
+  currentLang = lang;
+  document.querySelectorAll('.lang-pill').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('welcome-bubble').textContent = WELCOME_MSGS[lang] || WELCOME_MSGS.en;
+  updateSuggestions();
+}
+
+function updateSuggestions(){
+  const qs = SUG_QUESTIONS[currentLang] || SUG_QUESTIONS.en;
+  const el = document.getElementById('sug-chips');
+  el.innerHTML = qs.map(q=>`<span class="sug-chip" onclick="askSuggestion('${q.replace(/'/g,"\\'")}')">${q}</span>`).join('');
+}
+
+// ── CHAT LOGIC ────────────────────────────────────────────────────────────
+function handleKey(e){
+  if(e.key==='Enter' && !e.shiftKey){e.preventDefault();sendMessage();}
+}
+
+function askSuggestion(text){
+  document.getElementById('chat-input').value = text;
+  sendMessage();
+}
+
+async function sendMessage(){
+  const inp = document.getElementById('chat-input');
+  const msg = inp.value.trim();
+  if(!msg) return;
+  inp.value='';
+  inp.style.height='42px';
+
+  appendMsg('user', msg);
+  chatHistory.push({role:'user', content:msg});
+
+  document.getElementById('btn-send').disabled = true;
+  showTyping(true);
+
+  try {
+    const res = await fetch('/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({message:msg, lang:currentLang, history: chatHistory.slice(-10)})
+    });
+    const data = await res.json();
+    showTyping(false);
+    const reply = data.response || data.error || 'Sorry, I could not get a response.';
+    appendMsg('bot', reply);
+    chatHistory.push({role:'assistant', content:reply});
+    if(autoSpeak) speak(reply);
+  } catch(e){
+    showTyping(false);
+    appendMsg('bot', '⚠️ Connection error. Please check your internet connection and try again.');
+  }
+  document.getElementById('btn-send').disabled = false;
+}
+
+function appendMsg(role, text){
+  const wrap = document.getElementById('chat-messages');
+  const typing = document.getElementById('typing-msg');
+
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.innerHTML = `
+    <div class="msg-avatar ${role}">
+      ${role==='bot'
+        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round"><path d="M12 2C6 2 2 8 2 14c0 4 2.5 7 6 8 0-3 1-6 4-8-3 2-4 5-4 8 2 1 4 1.5 4 1.5C13 22 15 19 15 16c0-2-1-4-3-5 4 1 6 4 6 7 2.5-1.5 4-4.5 4-8 0-6-4-8-10-8z"/></svg>`
+        : `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
+      }
+    </div>
+    <div>
+      <div class="msg-bubble">${escapeHtml(text)}</div>
+      <div class="msg-time">${now()}</div>
+    </div>`;
+  wrap.insertBefore(div, typing);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function escapeHtml(t){
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showTyping(show){
+  document.getElementById('typing-msg').style.display = show ? 'flex' : 'none';
+  if(show){
+    const wrap = document.getElementById('chat-messages');
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+}
+
+function clearChat(){
+  chatHistory = [];
+  const wrap = document.getElementById('chat-messages');
+  const kids = [...wrap.children];
+  kids.forEach(c=>{if(c.id!=='welcome-msg'&&c.id!=='typing-msg')c.remove();});
+}
+
+// ── AUTO SPEAK ────────────────────────────────────────────────────────────
+function toggleSpeak(){
+  autoSpeak = !autoSpeak;
+  const btn = document.getElementById('speak-toggle');
+  btn.classList.toggle('active', autoSpeak);
+  btn.title = autoSpeak ? 'Auto-speak ON' : 'Auto-speak OFF';
+}
+
+function speak(text){
+  if(gttsAudio){gttsAudio.pause();gttsAudio=null;}
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  const ttsLang = TTS_CODES[currentLang] || 'en';
+  const chunks = chunkText(text.replace(/\\n/g,' ').replace(/\n/g,' ').replace(/\*/g,''), 190);
+  let i=0;
+  const playNext=()=>{
+    if(i>=chunks.length)return;
+    const url='/tts?lang='+ttsLang+'&text='+encodeURIComponent(chunks[i]);
+    gttsAudio=new Audio(url);
+    gttsAudio.onended=()=>{i++;playNext();};
+    gttsAudio.onerror=()=>{i++;playNext();};
+    gttsAudio.play().catch(()=>{i++;playNext();});
+  };
+  playNext();
+}
+
+function chunkText(text,max){
+  const out=[];
+  while(text.length>0){
+    if(text.length<=max){out.push(text);break;}
+    let cut=text.lastIndexOf(' ',max);
+    if(cut<30)cut=max;
+    out.push(text.substring(0,cut));
+    text=text.substring(cut).trim();
+  }
+  return out;
+}
+
+// ── VOICE INPUT ───────────────────────────────────────────────────────────
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+function toggleMic(){
+  if(!SpeechRecognition){alert('Voice input requires Chrome or Edge browser.');return;}
+  isListening ? stopMic() : startMic();
+}
+
+function startMic(){
+  navigator.mediaDevices.getUserMedia({audio:true}).then(()=>{
+    isListening=true;
+    document.getElementById('btn-mic').classList.add('listening');
+    recognition=new SpeechRecognition();
+    recognition.lang=SPEECH_CODES[currentLang]||'en-IN';
+    recognition.onresult=(e)=>{
+      const t=e.results[0][0].transcript;
+      document.getElementById('chat-input').value=t;
+      if(e.results[0].isFinal){stopMic();setTimeout(sendMessage,200);}
+    };
+    recognition.onerror=()=>stopMic();
+    recognition.onend=()=>{if(isListening)stopMic();};
+    recognition.start();
+  }).catch(()=>alert('Microphone access denied.'));
+}
+
+function stopMic(){
+  isListening=false;
+  document.getElementById('btn-mic').classList.remove('listening');
+  if(recognition)try{recognition.stop();}catch(e){}
+}
+
+// Auto-resize textarea
+document.getElementById('chat-input').addEventListener('input',function(){
+  this.style.height='42px';
+  this.style.height=Math.min(this.scrollHeight,120)+'px';
+});
+</script>
+{% endblock body %}

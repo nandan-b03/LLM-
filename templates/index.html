@@ -66,6 +66,11 @@
 
 .upload-caption{font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:rgba(204,232,210,0.18);text-align:center;letter-spacing:1.2px;text-transform:uppercase;margin-top:4px;}
 
+/* Lang select inside upload form */
+.lang-row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:4px;}
+.lang-opt{font-family:'JetBrains Mono',monospace;font-size:0.62rem;padding:4px 10px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.2s;}
+.lang-opt:checked+label,.lang-opt.selected{background:rgba(148,212,84,0.12);border-color:var(--lime);color:var(--lime);}
+
 /* RESULT */
 .result-panel{grid-column:2;grid-row:1;}
 
@@ -85,6 +90,9 @@
 .r-label{font-family:'JetBrains Mono',monospace;font-size:0.58rem;font-weight:500;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);margin-bottom:5px;}
 .r-value{font-size:0.9rem;color:var(--text);font-weight:400;line-height:1.65;}
 .r-value.hl{font-family:'Syne',sans-serif;color:var(--green);font-weight:700;font-size:1.15rem;letter-spacing:-0.3px;}
+
+.conf-bar{height:4px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;margin-top:6px;}
+.conf-fill{height:100%;border-radius:2px;background:linear-gradient(to right,var(--green),var(--lime));transition:width 0.6s ease;}
 
 .empty-state{height:155px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:rgba(204,232,210,0.16);font-size:0.8rem;text-align:center;}
 
@@ -126,9 +134,26 @@
 .btn-buy:hover{transform:translateY(-2px);box-shadow:0 10px 32px rgba(125,222,60,0.48);color:#051505;}
 .supp-empty{color:rgba(204,232,210,0.18);font-size:0.82rem;margin:44px 0 20px;font-weight:300;line-height:1.7;}
 
+/* LLM EXPLANATION PANEL */
+.llm-panel{grid-column:1/-1;grid-row:3;}
+.llm-content{font-size:0.88rem;color:var(--text);line-height:1.8;white-space:pre-line;}
+.llm-content strong,.llm-content b{color:var(--lime);}
+.llm-badge{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:0.58rem;letter-spacing:2px;text-transform:uppercase;color:var(--lime);margin-bottom:14px;background:rgba(148,212,84,0.07);border:1px solid rgba(148,212,84,0.2);padding:4px 10px;border-radius:4px;}
+.llm-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
+.btn-ask-ai{
+  display:inline-flex;align-items:center;gap:8px;
+  background:linear-gradient(135deg,rgba(61,158,106,0.18),rgba(36,107,66,0.18));
+  border:1px solid rgba(61,158,106,0.4);
+  color:rgba(255,255,255,0.85);border-radius:9px;
+  padding:10px 20px;font-size:0.82rem;font-weight:500;
+  cursor:pointer;text-decoration:none;transition:all 0.22s;
+}
+.btn-ask-ai:hover{background:rgba(61,158,106,0.28);border-color:rgba(61,158,106,0.65);color:#fff;transform:translateY(-1px);}
+.conf-warning{background:rgba(220,120,40,0.1);border:1px solid rgba(220,120,40,0.3);border-radius:8px;padding:10px 14px;font-size:0.8rem;color:rgba(255,200,100,0.85);margin-bottom:14px;}
+
 @media(max-width:860px){
   .engine-grid{grid-template-columns:1fr;grid-template-rows:auto;}
-  .upload-panel,.result-panel,.remedy-panel,.supplement-panel{grid-column:1;grid-row:auto;}
+  .upload-panel,.result-panel,.remedy-panel,.supplement-panel,.llm-panel{grid-column:1;grid-row:auto;}
 }
 </style>
 
@@ -136,7 +161,7 @@
   <div class="page-header">
     <div class="ph-eyebrow">AI Engine</div>
     <h1>Plant Disease <span>Analyser</span></h1>
-    <p>Upload a leaf image and let the model do the rest</p>
+    <p>Upload a leaf image — CNN detects the disease, AI explains and advises</p>
   </div>
 
   <div class="engine-grid">
@@ -155,6 +180,19 @@
         {% endif %}
       </div>
       <form action="{{ url_for('image') }}" method="POST" enctype="multipart/form-data" class="upload-form">
+
+        <!-- Language selector -->
+        <div style="width:100%;max-width:280px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:0.58rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:8px;text-align:center;">Response Language</div>
+          <div class="lang-row" id="lang-row">
+            <button type="button" class="lang-opt selected" data-lang="en" onclick="pickLang(this)">English</button>
+            <button type="button" class="lang-opt" data-lang="kn" onclick="pickLang(this)">ಕನ್ನಡ</button>
+            <button type="button" class="lang-opt" data-lang="ta" onclick="pickLang(this)">தமிழ்</button>
+            <button type="button" class="lang-opt" data-lang="te" onclick="pickLang(this)">తెలుగు</button>
+          </div>
+          <input type="hidden" name="lang" id="lang-input" value="{{ lang if lang else 'en' }}">
+        </div>
+
         <label for="fi" class="btn-pick">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Choose Image
@@ -178,13 +216,30 @@
           <div class="result-rows">
             <div><div class="r-label">Status</div><div class="r-value hl">Healthy</div></div>
             <div><div class="r-label">Notes</div><div class="r-value">{{ causes }}</div></div>
+            {% if confidence %}
+            <div>
+              <div class="r-label">Confidence</div>
+              <div class="r-value">{{ confidence }}%</div>
+              <div class="conf-bar"><div class="conf-fill" style="width:{{ confidence }}%"></div></div>
+            </div>
+            {% endif %}
           </div>
         {% else %}
           <div class="status-chip diseased"><div class="chip-dot"></div>Disease Detected</div>
+          {% if confidence and confidence|float < 60 %}
+          <div class="conf-warning">⚠️ Low confidence ({{ confidence }}%) — please verify with an agricultural expert before taking action.</div>
+          {% endif %}
           <div class="result-rows">
             <div><div class="r-label">Status</div><div class="r-value">{{ status }}</div></div>
             <div><div class="r-label">Disease</div><div class="r-value hl">{{ disease }}</div></div>
             <div><div class="r-label">Causes</div><div class="r-value">{{ causes }}</div></div>
+            {% if confidence %}
+            <div>
+              <div class="r-label">Confidence</div>
+              <div class="r-value">{{ confidence }}%</div>
+              <div class="conf-bar"><div class="conf-fill" style="width:{{ confidence }}%"></div></div>
+            </div>
+            {% endif %}
           </div>
         {% endif %}
       {% else %}
@@ -197,7 +252,7 @@
 
     <!-- REMEDY -->
     <div class="panel remedy-panel">
-      <div class="panel-label">Prevention & Remedies</div>
+      <div class="panel-label">Prevention &amp; Remedies</div>
       {% if status %}
         {% if status == "Healthy" %}
           <div class="empty-state">
@@ -236,7 +291,48 @@
       {% endif %}
     </div>
 
+    <!-- LLM EXPLANATION PANEL -->
+    {% if llm_explanation %}
+    <div class="panel llm-panel">
+      <div class="panel-label">AI Agriculture Assistant — Detailed Explanation</div>
+      <div class="llm-badge">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Generated by AI — General advice only. Consult an expert before acting.
+      </div>
+      <div class="llm-content">{{ llm_explanation }}</div>
+      <div class="llm-actions">
+        <a href="{{ url_for('assistant', lang=lang if lang else 'en') }}" class="btn-ask-ai">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Ask More Questions
+        </a>
+        <a href="{{ url_for('search') }}" class="btn-ask-ai">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+          Voice Search
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
   </div>
 </div>
-<script>function updateFN(i){document.getElementById('file-chosen').textContent=i.files[0]?i.files[0].name:'No file selected';}</script>
+
+<script>
+function updateFN(i){document.getElementById('file-chosen').textContent=i.files[0]?i.files[0].name:'No file selected';}
+
+function pickLang(btn){
+  document.querySelectorAll('.lang-opt').forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('lang-input').value = btn.dataset.lang;
+}
+
+// Pre-select correct lang after prediction
+(function(){
+  const saved = "{{ lang if lang else 'en' }}";
+  document.querySelectorAll('.lang-opt').forEach(b=>{
+    if(b.dataset.lang===saved) b.classList.add('selected');
+    else b.classList.remove('selected');
+  });
+  document.getElementById('lang-input').value = saved;
+})();
+</script>
 {% endblock body %}

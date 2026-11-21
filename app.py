@@ -1,6 +1,18 @@
 # -*- coding: utf-8 -*-
+"""
+app.py  —  Plant Disease Detection + AI Agriculture Assistant
+=============================================================
+Existing CNN-based disease detection is preserved unchanged.
+New features added:
+  • /image POST — now also returns LLM explanation + stores CNN context in session
+  • /assistant  — AI Agriculture Assistant chatbot page
+  • /chat       — JSON API for chatbot messages
+  • /tts        — Server-side TTS proxy (unchanged)
+"""
+
 import os
 import cv2
+import json
 import numpy as np
 from tqdm import tqdm
 import tflearn
@@ -8,12 +20,35 @@ from tflearn.layers.conv import conv_2d, max_pool_2d
 from tflearn.layers.core import input_data, dropout, fully_connected
 from tflearn.layers.estimator import regression
 import tensorflow as tf
-from flask import Flask, render_template, request, send_file, Response
+from flask import (
+    Flask, render_template, request, send_file,
+    Response, jsonify, session,
+)
 import urllib.request
 import urllib.parse
-import io
+
+# ── Load .env if present ──────────────────────────────────────────────────────
+def _load_env_file(filepath=".env"):
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        os.environ.setdefault(k.strip(), v.strip().strip("\"'"))
+        except Exception as e:
+            print("Notice: Error loading .env file: {}".format(e))
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    _load_env_file()
+
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "leaf-disease-secret-2026")
 
 # ── ROUTES ───────────────────────────────────────────────────────────────────
 
@@ -28,6 +63,23 @@ def index():
 @app.route("/search")
 def search():
     return render_template("search.html")
+
+@app.route("/assistant")
+def assistant():
+    """AI Agriculture Assistant chatbot page."""
+    from agriculture_assistant import get_suggested_questions
+    from llm_service import is_llm_available, get_provider_name
+    lang = request.args.get("lang", "en")
+    suggested = get_suggested_questions(lang)
+    cnn_context = session.get("cnn_context", {})
+    return render_template(
+        "assistant.html",
+        lang=lang,
+        suggested_questions=suggested,
+        cnn_context=cnn_context,
+        llm_available=is_llm_available(),
+        llm_provider=get_provider_name(),
+    )
 
 # ── TEXT-TO-SPEECH PROXY ─────────────────────────────────────────────────────
 
@@ -56,6 +108,29 @@ def tts():
     except Exception as e:
         print(f"TTS error: {e}")
         return str(e), 500
+
+# ── CHATBOT API ───────────────────────────────────────────────────────────────
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    """JSON API: receive a user message, return LLM response."""
+    from agriculture_assistant import chat as assistant_chat
+    try:
+        data = request.get_json(force=True)
+        user_msg = data.get("message", "").strip()
+        lang     = data.get("lang", "en")
+        history  = data.get("history", [])
+
+        if not user_msg:
+            return jsonify({"error": "Empty message"}), 400
+
+        cnn_context = session.get("cnn_context", {})
+        response_text = assistant_chat(user_msg, history, lang, cnn_context)
+        return jsonify({"response": response_text})
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(exc)}), 500
 
 # ── DISEASE INFO MAP ─────────────────────────────────────────────────────────
 
@@ -150,7 +225,7 @@ def image():
     except ValueError as e:
         return render_template("index.html", error=str(e))
 
-    # 5. Build model
+    # 5. Build model (unchanged from original)
     tf.compat.v1.reset_default_graph()
 
     convnet = input_data(shape=[None, IMG_SIZE, IMG_SIZE, 3], name="input")
@@ -174,11 +249,12 @@ def image():
 
     if os.path.exists("{}.meta".format(MODEL_NAME)):
         model.load(MODEL_NAME)
-    
+
     # 6. Predict
     data_arr  = img_array.reshape(IMG_SIZE, IMG_SIZE, 3)
     model_out = model.predict([data_arr])[0]
     pred_idx  = int(np.argmax(model_out))
+    confidence = float(np.max(model_out))
     str_label = LABEL_MAP.get(pred_idx, "Unknown")
 
     # 7. Fetch disease info
@@ -191,7 +267,34 @@ def image():
         "buy_url":    "https://www.amazon.in/s?k=plant+disease+treatment",
     })
 
-    # 8. Render
+    # 8. Store CNN context in session for chatbot
+    session["cnn_context"] = {
+        "disease":    str_label,
+        "display":    info["display"],
+        "confidence": confidence,
+        "causes":     info["cause"],
+    }
+
+    # 9. Generate LLM explanation (non-blocking — returns fallback if LLM unavailable)
+    lang = request.form.get("lang", "en")
+    llm_explanation = ""
+    try:
+        from disease_explanation import generate_disease_explanation, generate_healthy_explanation
+        if str_label == "Healthy":
+            llm_explanation = generate_healthy_explanation(lang)
+        else:
+            llm_explanation = generate_disease_explanation(
+                disease_name=str_label,
+                display_name=info["display"],
+                confidence=confidence,
+                lang=lang,
+                extra_context=info["cause"],
+            )
+    except Exception as exc:
+        print(f"LLM explanation error: {exc}")
+        llm_explanation = ""
+
+    # 10. Render
     return render_template(
         "index.html",
         status       = str_label,
@@ -202,7 +305,11 @@ def image():
         supplements  = info["supplement"],
         buy_link     = info.get("buy_url", "https://www.amazon.in/s?k=plant+disease+treatment"),
         ImageDisplay = "http://127.0.0.1:5000/static/images/" + file_name,
+        confidence   = round(confidence * 100, 1),
+        llm_explanation = llm_explanation,
+        lang         = lang,
     )
+
 
 if __name__ == "__main__":
     app.run(debug=True)

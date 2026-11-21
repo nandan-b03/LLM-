@@ -1,0 +1,21 @@
+# Plant Disease Detection + AI Agriculture Assistant
+# requirements.txt
+
+# ── Existing dependencies ──────────────────────────────────────────────────
+flask
+numpy
+opencv-python
+tqdm
+tflearn
+tensorflow
+
+# ── New dependencies ───────────────────────────────────────────────────────
+# LLM providers (install at least one)
+google-generativeai        # Google Gemini API (recommended)
+# openai                   # OpenAI API (alternative)
+
+# Environment variable loading
+python-dotenv
+
+# HTTP requests (already installed; listed for completeness)
+requests

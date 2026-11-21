@@ -1,10 +1,28 @@
-# Python
+# Environment variables & API keys
+.env
+.env.*
+!.env.example
+*.env
+*.key
+*.pem
+*.secret
+
+# Dependencies & Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+node_modules/
+pip-wheel-metadata/
+
+# Python cache & build artifacts
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -21,17 +39,19 @@ wheels/
 .installed.cfg
 *.egg
 
-# Data and Models
+# Data, Uploads and Models
 *.npy
 *.model*
 checkpoint
 log/
 voice.mp3
+static/images/*
+!static/images/.gitkeep
 
-# IDEs
+# IDEs & OS
 .vscode/
 .idea/
-
-# OS
 .DS_Store
 Thumbs.db
+*.bak
+*.tmp

@@ -104,6 +104,7 @@
       <span class="chip" onclick="ask('What is septoria')">Septoria</span>
       <span class="chip" onclick="ask('How to prevent leaf disease')">Prevention Tips</span>
       <span class="chip" onclick="ask('Go to AI engine')">Open AI Engine</span>
+      <span class="chip" onclick="window.location.href='/assistant'">AI Chatbot</span>
       <span class="chip" onclick="ask('Help')">Help</span>
     </div>
   </div>
@@ -333,11 +334,11 @@ function ask(query) {
   console.log("Asking:", query, "in", currentLang);
   vaTranscript.textContent = '"' + query + '"';
   const langLabels = {
-    "en-IN": { processing: "Thinking...", found: "Answer:", fallback: "I don't have information on that." },
+    "en-IN": { processing: "Thinking...", found: "Answer:", fallback: "I don't have information on that. Try the AI Assistant for more details." },
     "hi-IN": { processing: "सोच रहा हूँ...", found: "उत्तर:", fallback: "मेरे पास उस बारे में जानकारी नहीं है।" },
-    "ta-IN": { processing: "யோசிக்கிறேன்...", found: "பதில் இதோ:", fallback: "மன்னிக்கவும், அதைப் பற்றிய தகவல் என்னிடம் இல்லை." },
-    "te-IN": { processing: "ఆలోచిస్తున్నాను...", found: "సమాధానం:", fallback: "క్షమించండి, ఆ సమాచారం నా దగ్గర లేదు." },
-    "kn-IN": { processing: "ಯೋಚಿಸುತ್ತಿದ್ದೇನೆ...", found: "ಉತ್ತರ ಇಲ್ಲಿದೆ:", fallback: "ಕ್ಷಮಿಸಿ, ನನ್ನ ಬಳಿ ಆ ಮಾಹಿತಿ ಇಲ್ಲ." }
+    "ta-IN": { processing: "யோசிக்கிறேன்...", found: "பதில் இதோ:", fallback: "மன்னிக்கவும், AI Assistant-ஐ பயன்படுத்தவும்." },
+    "te-IN": { processing: "ఆలోచిస్తున్నాను...", found: "సమాధానం:", fallback: "క్షమించండి, AI Assistant ని ఉపయోగించండి." },
+    "kn-IN": { processing: "ಯೋಚಿಸುತ್ತಿದ್ದೇನೆ...", found: "ಉತ್ತರ ಇಲ್ಲಿದೆ:", fallback: "ಕ್ಷಮಿಸಿ, AI Assistant ಅನ್ನು ಬಳಸಿ." }
   };
   const labels = langLabels[currentLang] || langLabels["en-IN"];
   vaStatus.textContent = labels.processing;
@@ -346,11 +347,22 @@ function ask(query) {
     vaStatus.textContent = labels.found;
     const langCode = currentLang.split('-')[0];
     let answer = match[langCode] || match.answer;
-    console.log("Found answer in", langCode);
     showAnswer(answer, match.redirect);
   } else {
-    vaStatus.textContent = "Not found";
-    showAnswer(labels.fallback);
+    // KB miss → try LLM via /chat API
+    vaStatus.textContent = "Asking AI...";
+    const langCode = currentLang.split('-')[0];
+    fetch('/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: query, lang: langCode, history: []})
+    }).then(r => r.json()).then(data => {
+      vaStatus.textContent = labels.found;
+      showAnswer(data.response || labels.fallback);
+    }).catch(() => {
+      vaStatus.textContent = "Not found";
+      showAnswer(labels.fallback);
+    });
   }
 }
 
