@@ -17,6 +17,34 @@ venv.bak/
 node_modules/
 pip-wheel-metadata/
 
+# Datasets (large image archives)
+train/
+test/
+
+# Scratch, debug & experimental scripts
+cnn copy.py
+debug_model.py
+predict_debug.py
+binary.py
+rgbtogray.py
+images.py
+generate_pdf.py
+
+# Temporary & loose test images
+leaf1.JPG
+leaf3.JPG
+download.png
+static/debug/
+static/images/*
+!static/images/.gitkeep
+
+# Data, Model weights & Logs
+*.npy
+*.model*
+checkpoint
+log/
+voice.mp3
+
 # Python cache & build artifacts
 __pycache__/
 *.py[cod]
@@ -38,15 +66,6 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
-# Data, Uploads and Models
-*.npy
-*.model*
-checkpoint
-log/
-voice.mp3
-static/images/*
-!static/images/.gitkeep
 
 # IDEs & OS
 .vscode/
